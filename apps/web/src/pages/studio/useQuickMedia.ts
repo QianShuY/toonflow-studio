@@ -8,7 +8,7 @@ import { currentUser } from "@/stores/multiTenant";
 export type QuickMode = "image" | "video";
 type SavedReference = { path: string; mimeType: string };
 export type QuickReference = { url: string; file?: File; asset?: SavedReference };
-type QuickRecipe = { prompt?: string; ratio?: string; duration?: number; images?: SavedReference[] };
+type QuickRecipe = { batchId?: string; batchIndex?: number; prompt?: string; ratio?: string; duration?: number; images?: SavedReference[] };
 type WorkDetails = { name?: string; tags?: string[]; favorite?: boolean };
 export type QuickWork = QuickRecipe & { path: string; mimeType: string; mediaType: QuickMode; modifiedAt?: number; size?: number; details?: WorkDetails };
 type QuickTask = QuickRecipe & { id: string; mode: QuickMode };
@@ -24,8 +24,10 @@ const defaultRatios = ["16:9", "9:16", "1:1"];
 
 function readRecipe(data: unknown): QuickRecipe {
   if (!data || typeof data !== "object") return {};
-  const { prompt, ratio, duration, images } = data as QuickRecipe;
+  const { batchId, batchIndex, prompt, ratio, duration, images } = data as QuickRecipe;
   return {
+    batchId: typeof batchId === "string" && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(batchId) ? batchId : undefined,
+    batchIndex: typeof batchIndex === "number" && Number.isSafeInteger(batchIndex) && batchIndex >= 0 ? batchIndex : undefined,
     prompt: typeof prompt === "string" ? prompt.slice(0, 10000) : undefined,
     ratio: typeof ratio === "string" && /^\d{1,2}:\d{1,2}$/.test(ratio) ? ratio : undefined,
     duration: typeof duration === "number" && quickDurations.includes(duration) ? duration : undefined,
@@ -224,9 +226,9 @@ export default function useQuickMedia() {
   }
 
   async function finish(results: { mediaType: string; path: string; mimeType: string }[]) {
-    const recipe = readRecipe(pendingTask.value);
+    const recipe = { ...readRecipe(pendingTask.value), batchId: pendingTask.value?.id };
     const assets = results.filter((item): item is QuickWork => item.mediaType === "image" || item.mediaType === "video");
-    const result = assets[0] && { ...assets[0], ...recipe };
+    const result = assets[0] && { ...assets[0], ...recipe, batchIndex: 0 };
     if (result) {
       try { sessionStorage.setItem(resultKey, JSON.stringify(result)); }
       catch { latest.value = result; }
@@ -237,7 +239,7 @@ export default function useQuickMedia() {
     }
     if (recipe.prompt && directory.value) {
       const files = useWorkspaceFiles(directory.value);
-      await Promise.all(assets.map(asset => files.writeJson(`${asset.path}.json`, recipe, true).catch(() => undefined)));
+      await Promise.all(assets.map((asset, batchIndex) => files.writeJson(`${asset.path}.json`, { ...recipe, batchIndex }, true).catch(() => undefined)));
     }
     remember();
     latest.value = result;
