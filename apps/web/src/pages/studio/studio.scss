@@ -69,7 +69,110 @@
     --dockClearance: calc(186px + var(--dockInset));
     padding-bottom: var(--dockClearance);
   }
-  .creationStage { width: min(100%, 1050px); margin-inline: auto; }
+  .creationStage { width: min(100%, 1400px); margin-inline: auto; }
+  .stageWorkspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+    align-items: start;
+    gap: 18px;
+  }
+  .stageCanvas, .sessionRail {
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 24px;
+    background: #fffaf3;
+  }
+  .stageCanvasBar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 4px 12px;
+    strong { overflow-wrap: anywhere; }
+    span { color: var(--muted); font-size: 12px; }
+  }
+  .sessionRail {
+    max-height: min(72vh, 680px);
+    overflow-y: auto;
+    scrollbar-color: #c9ae96 transparent;
+  }
+  .sessionHeading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 3px 14px;
+    h2 { margin: 4px 0 0; font-size: 21px; }
+    span { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .12em; }
+    a { white-space: nowrap; }
+  }
+  .sessionStatus, .sessionHint {
+    margin: 0 0 10px;
+    padding: 9px 12px;
+    border-radius: 12px;
+    background: #f3e9dc;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .sessionBatch {
+    padding: 12px 3px;
+    border-top: 1px solid var(--line);
+    &:last-child { padding-bottom: 2px; }
+  }
+  .sessionBatchLabel {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 6px;
+    margin-bottom: 7px;
+    time { color: var(--muted); font-size: 11px; }
+  }
+  .sessionPrompt {
+    margin: 0 0 8px;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 12px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .sessionTiles {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+    button {
+      position: relative;
+      display: block;
+      aspect-ratio: 4 / 3;
+      min-width: 0;
+      overflow: hidden;
+      padding: 0;
+      border: 2px solid transparent;
+      border-radius: 10px;
+      background: #eee1d3;
+      color: var(--ink);
+      cursor: pointer;
+      &[aria-pressed="true"] { border-color: #985a31; box-shadow: 0 0 0 1px #985a31; }
+      &:focus-visible { outline: 2px solid #985a31; outline-offset: 2px; }
+      &:disabled { cursor: default; }
+      :deep(img), :deep(video) { display: block; width: 100%; height: 100%; object-fit: cover; }
+      > span {
+        position: absolute;
+        inset: auto auto 3px 3px;
+        padding: 2px 4px;
+        border-radius: 4px;
+        background: #181613d9;
+        color: white;
+        font-size: 10px;
+      }
+    }
+  }
+  @media (max-width: 850px) {
+    .stageWorkspace { grid-template-columns: minmax(0, 1fr); }
+    .sessionRail { max-height: 380px; }
+    .sessionTiles { grid-template-columns: repeat(auto-fill, minmax(76px, 110px)); }
+  }
   .stageHeading {
     display: flex;
     align-items: end;
