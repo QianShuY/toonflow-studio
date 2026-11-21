@@ -53,26 +53,57 @@
             <div><span class="stageEyebrow">快速创作</span><h1 id="creationTitle">生成工作台</h1></div>
             <router-link class="pillButton" to="/studio/works">查看生成记录 <icon-arrow-up-right :size="16" /></router-link>
           </div>
-          <div class="stagePreview" :class="{ waiting: generating, stageFailed: generationError && !generating }" :aria-busy="generating">
-            <template v-if="stageUrl && latest && !generating">
-              <img v-if="latest.mediaType === 'image'" :src="stageUrl" alt="生成图片" />
-              <video v-else :src="stageUrl" controls playsinline aria-label="生成视频" />
-            </template>
-            <div v-else class="stageContent">
-              <span class="stageOrb"><icon-sparkles :size="28" aria-hidden="true" /></span>
-              <h2 role="status">{{ stageTitle }}</h2>
-              <p>{{ generationError || stageError || (generating ? "完成后会在这里显示，并保存到「我的作品」。" : latest ? "正在读取生成文件…" : "在下方输入提示词，开始新的创作。") }}</p>
-              <button v-if="pendingTask && !generating" class="pillButton" type="button" @click="resume">查询任务</button>
-              <button v-else-if="generationError" class="pillButton" type="button" @click="expandComposer">调整提示词</button>
+          <div class="stageWorkspace">
+            <div class="stageCanvas">
+              <div class="stageCanvasBar">
+                <strong>{{ stageWork && !generating ? workTitle(stageWork) : "创作预览" }}</strong>
+                <span v-if="stageWork && !generating">{{ [stageWork.mediaType === "image" ? "图片" : "视频", stageWork.ratio, stageWork.duration ? `${stageWork.duration} 秒` : ""].filter(Boolean).join(" · ") }}</span>
+              </div>
+              <div class="stagePreview" :class="{ waiting: generating, stageFailed: stageGenerationError && !generating }" :aria-busy="generating">
+                <template v-if="stageUrl && stageWork && !generating">
+                  <img v-if="stageWork.mediaType === 'image'" :src="stageUrl" alt="生成图片" />
+                  <video v-else :src="stageUrl" controls playsinline aria-label="生成视频" />
+                </template>
+                <div v-else class="stageContent">
+                  <span class="stageOrb"><icon-sparkles :size="28" aria-hidden="true" /></span>
+                  <h2 role="status">{{ stageTitle }}</h2>
+                  <p>{{ stageGenerationError || stageError || (generating ? "完成后可在创作记录里切换同批作品。" : stageWork ? "正在读取生成文件…" : "在下方输入提示词，开始新的创作。") }}</p>
+                  <button v-if="pendingTask && !generating" class="pillButton" type="button" @click="resume">查询任务</button>
+                  <button v-else-if="stageGenerationError" class="pillButton" type="button" @click="expandComposer">调整提示词</button>
+                </div>
+              </div>
+              <div v-if="!generating && (stagePrompt || stageUrl)" class="stageMeta">
+                <p v-if="stagePrompt">{{ stagePrompt }}</p>
+                <div v-if="stageUrl && stageWork" class="stageActions">
+                  <a class="pillButton" :href="stageUrl" :download="stageWork.path.split('/').at(-1)">下载</a>
+                  <button v-if="stageWork.prompt" class="pillButton" type="button" @click="reuseWork(stageWork)">沿用提示词和参数</button>
+                  <button v-if="canUseAsReference(stageWork)" class="pillButton" type="button" @click="referenceWork(stageWork, 'image')">用作参考图</button>
+                  <button v-if="canUseAsReference(stageWork)" class="darkButton" type="button" @click="referenceWork(stageWork, 'video')">用这张图做视频</button>
+                </div>
+              </div>
             </div>
-          </div>
-          <div v-if="!generating && (stagePrompt || stageUrl)" class="stageMeta">
-            <p v-if="stagePrompt">{{ stagePrompt }}</p>
-            <div v-if="stageUrl && latest" class="stageActions">
-              <a class="pillButton" :href="stageUrl" :download="latest.path.split('/').at(-1)">下载</a>
-              <button v-if="latest.prompt" class="pillButton" type="button" @click="reuseWork(latest)">再次编辑</button>
-              <button v-if="canUseAsReference(latest)" class="darkButton" type="button" @click="referenceWork(latest, 'video')">让它动起来</button>
-            </div>
+            <aside class="sessionRail" aria-labelledby="sessionTitle">
+              <header class="sessionHeading">
+                <div><span>STUDIO / HISTORY</span><h2 id="sessionTitle">创作记录</h2></div>
+                <router-link class="textLink" to="/studio/works">全部 <icon-arrow-up-right :size="14" /></router-link>
+              </header>
+              <div v-if="generating || pendingTask" class="sessionStatus" role="status">{{ statusLabel }}</div>
+              <p v-if="workError" class="sessionHint">{{ workError }} <button class="pillButton" type="button" @click="loadWorks">重试</button></p>
+              <p v-else-if="!stageBatches.length" class="sessionHint">{{ loadingWorks ? "正在读取作品…" : "生成后，在这里按批次回看和挑选作品。" }}</p>
+              <section v-for="batch in stageBatches" :key="batch.key" class="sessionBatch" aria-label="生成批次">
+                <div class="sessionBatchLabel"><strong>{{ batch.items.length > 1 ? `同批 · ${batch.items.length} 件` : batch.items[0]?.mediaType === "video" ? "视频作品" : "图片作品" }}</strong>
+                  <time v-if="batch.items[0]?.modifiedAt">{{ dateFormat.format(batch.items[0].modifiedAt) }}</time>
+                </div>
+                <p v-if="batch.items[0]?.prompt" class="sessionPrompt" :title="batch.items[0].prompt">{{ batch.items[0].prompt }}</p>
+                <div class="sessionTiles">
+                  <button v-for="(work, index) in batch.items" :key="work.path" type="button" :aria-pressed="stageWork?.path === work.path && !generating"
+                    :aria-label="`预览 ${workTitle(work)}，本批第 ${index + 1} 件`" :disabled="generating || Boolean(pendingTask)" @click="selectedStagePath = work.path">
+                    <workCover :directory="directory" :work="work" />
+                    <span>{{ work.mediaType === "video" ? "视频" : String(index + 1).padStart(2, "0") }}</span>
+                  </button>
+                </div>
+              </section>
+            </aside>
           </div>
         </section>
 
@@ -489,13 +520,36 @@ const promptPlaceholder = computed(() => mode.value === "video" ? "描述主体�
 const referenceDialog = ref<HTMLDialogElement>();
 const referenceError = ref("");
 const submittedPrompt = ref("");
-const stagePrompt = computed(() => latest.value?.prompt || pendingTask.value?.prompt || submittedPrompt.value);
+const selectedStagePath = ref("");
+const stageWork = computed(() => {
+  const path = selectedStagePath.value || latest.value?.path;
+  const work = works.value.find(work => work.path === path);
+  return latest.value?.path === path && !work?.prompt ? latest.value : work ?? latest.value;
+});
+const stageBatches = computed(() => {
+  const batches = new Map<string, QuickWork[]>();
+  const last = latest.value;
+  const recent = last && !works.value.some(work => work.path === last.path) ? [last, ...works.value] : works.value;
+  for (const work of recent) {
+    const key = work.batchId ?? work.path;
+    const batch = batches.get(key);
+    if (batch) batch.push(work);
+    else if (batches.size < 6) batches.set(key, [work]);
+  }
+  return [...batches.entries()].map(([key, items]) => ({
+    key, items: items.sort((left, right) => (left.batchIndex ?? 0) - (right.batchIndex ?? 0)),
+  }));
+});
+const stageGenerationError = computed(() => selectedStagePath.value ? "" : generationError.value);
+const stagePrompt = computed(() => selectedStagePath.value ? stageWork.value?.prompt : pendingTask.value?.prompt || stageWork.value?.prompt || submittedPrompt.value);
 const stageUrl = ref("");
 const stageError = ref("");
 const stageTitle = computed(() => generating.value ? (activeMode.value === "video" ? "正在生成视频" : "正在生成图片")
   : pendingTask.value ? "任务待确认"
-  : generationError.value || stageError.value ? "这次没有拿到作品"
-  : latest.value ? "作品已生成" : "准备开始创作");
+  : stageError.value ? "无法加载作品预览"
+  : stageGenerationError.value ? "这次没有拿到作品"
+  : selectedStagePath.value ? "读取作品预览"
+  : stageWork.value ? "作品已生成" : "准备开始创作");
 const canGenerate = computed(() => !generating.value && !pendingTask.value && !!choices.value[mode.value] && !!prompt.value.trim() && currentReferences.value.length <= referenceLimit.value);
 const statusLabel = computed(() => generating.value ? (activeMode.value === "video" ? "视频生成中…" : "图片生成中…")
   : pendingTask.value ? "任务待确认"
@@ -538,11 +592,12 @@ onMounted(() => {
   restore();
   if (generating.value && route.name === "studio") void router.replace("/studio/create");
 });
-watch([latest, directory], async ([work, root], _previous, onCleanup) => {
+watch([() => stageWork.value?.path, directory], async ([path, root], _previous, onCleanup) => {
   stageUrl.value = "";
   stageError.value = "";
-  if (!work || !root) return;
-  const preview = useWorkspaceFiles(root).acquireUrl(work.path, work.mimeType);
+  const work = stageWork.value;
+  if (!path || !work || !root) return;
+  const preview = useWorkspaceFiles(root).acquireUrl(path, work.mimeType);
   let stale = false;
   onCleanup(() => { stale = true; preview.release(); });
   try {
@@ -552,7 +607,8 @@ watch([latest, directory], async ([work, root], _previous, onCleanup) => {
     if (!stale) stageError.value = "文件已保存，但暂时无法预览，请到「我的作品」重试。";
   }
 });
-watch(() => route.name, name => { if (name === "studioWorks") void loadWorks(); }, { immediate: true });
+watch(() => latest.value?.path, path => { if (path) selectedStagePath.value = ""; });
+watch(() => route.name, name => { if (name === "studioWorks" || name === "studioCreate") void loadWorks(); }, { immediate: true });
 watch(() => route.name, () => {
   browsing = false;
   composerCollapsed.value = false;
@@ -581,6 +637,7 @@ async function submitGeneration() {
   if (!canGenerate.value) return;
   const text = prompt.value.trim();
   submittedPrompt.value = text;
+  selectedStagePath.value = "";
   const task = run(mode.value, text, ratio.value, duration.value, [...currentReferences.value]);
   await router.push("/studio/create");
   window.scrollTo(0, 0);
