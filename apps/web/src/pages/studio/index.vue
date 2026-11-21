@@ -89,7 +89,18 @@
                 <div class="attachments" aria-label="参考素材">
                   <div v-for="(item, index) in currentReferences" :key="item.url" class="reference">
                     <img :src="item.url" :alt="referenceLabel(index)" />
-                    <span class="referenceLabel">{{ referenceLabel(index) }}</span>
+                    <button
+                      v-if="mode === 'image' && referenceLimit > 1"
+                      type="button"
+                      class="referenceLabel"
+                      :aria-label="`插入参考图编号 ${index + 1}`"
+                      :title="`插入[图${index + 1}]`"
+                      @mousedown.prevent
+                      @click="insertReferenceToken(index)"
+                    >
+                      [图{{ index + 1 }}]
+                    </button>
+                    <span v-else class="referenceLabel">{{ referenceLabel(index) }}</span>
                     <button type="button" class="removeReference" :aria-label="`移除${referenceLabel(index)}`" @click="removeReference(index)"><icon-x :size="15" /></button>
                   </div>
                   <button v-if="currentReferences.length < referenceLimit" class="upload" type="button" @click="openReferencePicker">
@@ -619,6 +630,21 @@ function changeMode(type: QuickMode) {
 
 function referenceLabel(index: number) {
   return mode.value === "video" ? "起始画面" : `参考图 ${index + 1}`;
+}
+
+async function insertReferenceToken(index: number) {
+  const input = promptInput.value;
+  if (!input || mode.value !== "image" || !currentReferences.value[index]) return;
+  const token = `[图${index + 1}]`;
+  const position = input.selectionEnd;
+  if (input.maxLength >= 0 && prompt.value.length + token.length > input.maxLength) {
+    ElMessage.warning("提示词已达长度上限，无法插入参考图编号。");
+    return;
+  }
+  prompt.value = prompt.value.slice(0, position) + token + prompt.value.slice(position);
+  await nextTick();
+  input.focus({ preventScroll: true });
+  input.setSelectionRange(position + token.length, position + token.length);
 }
 
 function replaceReferences(type: QuickMode, next: QuickReference[]) {
